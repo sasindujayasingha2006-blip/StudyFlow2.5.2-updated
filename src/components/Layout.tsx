@@ -206,70 +206,82 @@ export default function Layout() {
           <h1 className="text-xl font-black tracking-tighter">StudyFlow</h1>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto scrollbar-hide">
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               onClick={() => setIsMobileMenuOpen(false)}
               className={({ isActive }) => cn(
-                "flex items-center gap-4 px-4 py-3 rounded-lg font-bold transition-all group",
+                "flex items-center gap-4 px-4 py-3 rounded-xl font-bold transition-all group relative overflow-hidden",
                 isActive ? "bg-white/10 text-white" : "text-gray-400 hover:text-white hover:bg-white/5"
               )}
             >
-              <item.icon className={cn("w-6 h-6 transition-transform group-hover:scale-110")} />
-              <span>{item.label}</span>
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeNavIndicator"
+                      className="absolute left-0 top-0 bottom-0 w-1 bg-[#1DB954]" 
+                    />
+                  )}
+                  <item.icon className={cn("w-6 h-6 transition-transform group-hover:scale-110", isActive && "text-[#1DB954]")} />
+                  <span className="tracking-wide">{item.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
           
-          <div className="pt-6 pb-2 px-4">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Library</p>
+          <div className="pt-8 pb-3 px-4">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Library</p>
           </div>
           
-          <button className="w-full flex items-center gap-4 px-4 py-3 text-gray-400 font-bold hover:text-white hover:bg-white/5 rounded-lg transition-all group">
-            <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-500 rounded flex items-center justify-center group-hover:scale-110 transition-transform">
+          <button className="w-full flex items-center gap-4 px-4 py-3 text-gray-400 font-bold hover:text-white hover:bg-white/5 rounded-xl transition-all group">
+            <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-500 rounded flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-indigo-500/20">
               <PlusSquare className="w-4 h-4 text-white" />
             </div>
-            <span>Create Session</span>
+            <span className="tracking-wide">Create Session</span>
           </button>
           
-          <button className="w-full flex items-center gap-4 px-4 py-3 text-gray-400 font-bold hover:text-white hover:bg-white/5 rounded-lg transition-all group">
-            <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-900 rounded flex items-center justify-center group-hover:scale-110 transition-transform">
+          <button className="w-full flex items-center gap-4 px-4 py-3 text-gray-400 font-bold hover:text-white hover:bg-white/5 rounded-xl transition-all group">
+            <div className="w-6 h-6 bg-gradient-to-br from-[#1DB954] to-emerald-900 rounded flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-[#1DB954]/20">
               <Heart className="w-4 h-4 text-white fill-current" />
             </div>
-            <span>Liked Topics</span>
+            <span className="tracking-wide">Liked Topics</span>
           </button>
         </nav>
 
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4">
           {user ? (
-            <div className="flex flex-col gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors group">
+            <div className="flex flex-col gap-3 p-3 bg-[#181818] border border-white/5 rounded-2xl hover:bg-[#282828] transition-colors group shadow-xl">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1DB954] to-[#1ed760] flex items-center justify-center text-black font-bold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1DB954] to-[#1ed760] flex items-center justify-center text-black font-bold shadow-inner">
                     {user.displayName?.[0] || user.email?.[0] || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{user.displayName || 'User'}</p>
-                    <p className="text-[10px] font-bold text-[#1DB954] uppercase tracking-widest">Level {userProfile?.level || 1}</p>
+                    <p className="text-sm font-bold truncate group-hover:text-[#1DB954] transition-colors">{user.displayName || 'User'}</p>
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Level {userProfile?.level || 1}</p>
                   </div>
                 </div>
-                <button onClick={handleLogout} className="p-2 text-gray-500 hover:text-red-500 transition-colors">
-                  <LogOut className="w-5 h-5" />
+                <button onClick={handleLogout} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors">
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
               
               {/* XP Progress Bar */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-bold text-gray-500">
+              <div className="space-y-1.5 px-1">
+                <div className="flex justify-between text-[10px] font-bold text-gray-400">
                   <span>{userProfile?.xp || 0} XP</span>
                   <span>{userProfile?.xpToNextLevel || 1000} XP</span>
                 </div>
-                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-black/50 rounded-full overflow-hidden shadow-inner">
                   <div 
-                    className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] rounded-full transition-all duration-500 relative"
                     style={{ width: `${((userProfile?.xp || 0) / (userProfile?.xpToNextLevel || 1000)) * 100}%` }}
-                  />
+                  >
+                    <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]" />
+                  </div>
                 </div>
               </div>
             </div>

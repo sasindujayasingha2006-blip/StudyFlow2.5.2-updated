@@ -177,6 +177,20 @@ export default function FocusMode({ subject, session, isPaused, onTogglePause, o
           "relative mb-8 md:mb-12 transition-all duration-1000 ease-in-out flex items-center justify-center",
           isImmersive ? "w-80 h-80 md:w-[500px] md:h-[500px]" : "w-56 h-56 md:w-80 md:h-80"
         )}>
+          {isImmersive && !isPaused && (
+            <motion.div
+              animate={{
+                scale: [1, 1.05, 1],
+                opacity: [0.1, 0.2, 0.1],
+              }}
+              transition={{
+                duration: 4, // 4-second breathing cycle
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute inset-0 bg-[#1DB954] rounded-full blur-[50px] pointer-events-none"
+            />
+          )}
           <svg className="absolute inset-0 w-full h-full -rotate-90">
             <circle
               cx="50%"
@@ -184,7 +198,7 @@ export default function FocusMode({ subject, session, isPaused, onTogglePause, o
               r="48%"
               fill="none"
               stroke="currentColor"
-              strokeWidth={isImmersive ? "1" : "4"}
+              strokeWidth={isImmersive ? "2" : "4"}
               className="text-white/5"
             />
             <motion.circle
@@ -193,18 +207,18 @@ export default function FocusMode({ subject, session, isPaused, onTogglePause, o
               r="48%"
               fill="none"
               stroke="currentColor"
-              strokeWidth={isImmersive ? "1" : "4"}
+              strokeWidth={isImmersive ? "2" : "4"}
               strokeDasharray="100 100"
               strokeDashoffset={100 - progress}
               pathLength="100"
-              className="text-[#1DB954] transition-all duration-1000"
+              className={cn("text-[#1DB954] transition-all duration-1000", isImmersive && "drop-shadow-[0_0_15px_rgba(29,185,84,0.5)]")}
             />
           </svg>
-          <div className="flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center justify-center z-10">
             <motion.span 
               layout
               className={cn(
-                "font-black tabular-nums tracking-tighter transition-all duration-1000 ease-in-out",
+                "font-black tabular-nums tracking-tighter transition-all duration-1000 ease-in-out drop-shadow-2xl",
                 isImmersive ? "text-8xl md:text-[180px] leading-none" : "text-5xl md:text-8xl"
               )}
             >

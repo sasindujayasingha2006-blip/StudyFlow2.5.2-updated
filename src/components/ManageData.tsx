@@ -26,6 +26,7 @@ interface ManageDataProps {
   onAddTopic: (subjectId: string, title: string, image?: string) => void;
   onEditTopic: (subjectId: string, topicId: string, title: string, mastery: number, image?: string, resources?: Resource[]) => void;
   onDeleteTopic: (subjectId: string, topicId: string) => void;
+  onReorderTopics: (subjectId: string, topics: any[]) => void;
   onUpdateResources: (subjectId: string, topicId: string, resources: Resource[]) => void;
   onResetSyllabus: () => void;
   onResetProfile: () => void;
@@ -51,6 +52,7 @@ export default function ManageData({
   onAddTopic,
   onEditTopic,
   onDeleteTopic,
+  onReorderTopics,
   onUpdateResources,
   onResetSyllabus,
   onResetProfile,
@@ -137,6 +139,7 @@ export default function ManageData({
               onAddTopic={onAddTopic}
               onEditTopic={onEditTopic}
               onDeleteTopic={onDeleteTopic}
+              onReorderTopics={onReorderTopics}
               setResourceModal={setResourceModal}
               setConfirmModal={setConfirmModal}
               setError={setError}

@@ -228,6 +228,17 @@ export default function Manage() {
     }
   };
 
+  const handleReorderTopics = async (subjectId: string, topics: Topic[]) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'subjects', subjectId), {
+        topics
+      });
+    } catch (e) {
+      console.error("Failed to reorder topics", e);
+    }
+  };
+
   const handleResetSyllabus = async () => {
     if (!user) return;
     try {
@@ -282,6 +293,7 @@ export default function Manage() {
         onAddTopic={handleAddTopic}
         onEditTopic={handleEditTopic}
         onDeleteTopic={handleDeleteTopic}
+        onReorderTopics={handleReorderTopics}
         onUpdateResources={handleUpdateResources}
         onResetSyllabus={handleResetSyllabus}
         onResetProfile={handleResetProfile}

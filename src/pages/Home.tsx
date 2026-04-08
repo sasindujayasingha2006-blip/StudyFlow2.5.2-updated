@@ -275,32 +275,32 @@ export default function Home() {
               <motion.div 
                 key={mix.id}
                 variants={itemVariants}
-                whileHover={{ y: -8 }}
-                className="group relative bg-[#181818] p-4 rounded-xl transition-all duration-300 hover:bg-[#282828] cursor-pointer shadow-lg"
+                whileHover={{ y: -8, scale: 1.02 }}
+                className="group relative bg-[#181818] p-4 rounded-2xl transition-all duration-300 hover:bg-[#282828] cursor-pointer shadow-lg border border-white/5 hover:border-white/10 hover:shadow-2xl"
                 onClick={mix.action}
               >
-                <div className={cn("aspect-square rounded-lg mb-4 relative overflow-hidden bg-gradient-to-br shadow-2xl", mix.gradient)}>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
+                <div className={cn("aspect-square rounded-xl mb-4 relative overflow-hidden bg-gradient-to-br shadow-inner", mix.gradient)}>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 group-hover:scale-110 transition-all duration-500">
                     <mix.icon className="w-24 h-24 text-white" />
                   </div>
-                  <div className="absolute inset-0 bg-black/20" />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500" />
                   
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     whileHover={{ opacity: 1, y: 0 }}
-                    className="absolute bottom-2 right-2 w-12 h-12 bg-[#1DB954] rounded-full flex items-center justify-center shadow-xl translate-y-2 group-hover:translate-y-0 transition-all duration-300"
+                    className="absolute bottom-3 right-3 w-12 h-12 bg-[#1DB954] rounded-full flex items-center justify-center shadow-xl translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:scale-105"
                   >
                     <Play className="w-6 h-6 text-black fill-current ml-1" />
                   </motion.div>
 
                   <div className="absolute top-3 left-3">
-                    <span className="px-2 py-1 bg-black/40 backdrop-blur-md rounded text-[8px] font-black text-white tracking-widest uppercase">
+                    <span className="px-2 py-1 bg-black/40 backdrop-blur-md rounded text-[8px] font-black text-white tracking-widest uppercase border border-white/10">
                       {mix.tag}
                     </span>
                   </div>
                 </div>
                 
-                <h3 className="font-bold text-sm mb-1 truncate">{mix.title}</h3>
+                <h3 className="font-bold text-sm mb-1 truncate group-hover:text-[#1DB954] transition-colors">{mix.title}</h3>
                 <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
                   {mix.description}
                 </p>
@@ -333,16 +333,17 @@ export default function Home() {
 
       <motion.section 
         variants={itemVariants}
-        className="bg-gradient-to-br from-[#1DB954]/20 to-transparent p-8 rounded-3xl border border-[#1DB954]/20"
+        className="relative bg-gradient-to-br from-[#1DB954]/20 via-[#1DB954]/5 to-transparent p-8 md:p-12 rounded-[2rem] border border-[#1DB954]/20 overflow-hidden group"
       >
-        <div className="flex flex-col md:flex-row items-center gap-8">
-          <div className="flex-1 space-y-4 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#1DB954]/20 rounded-full text-[#1DB954] text-xs font-black tracking-widest uppercase">
-              <Sparkles className="w-3 h-3" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#1DB954]/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 group-hover:bg-[#1DB954]/20 transition-colors duration-700 pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row items-center gap-8 md:gap-12">
+          <div className="flex-1 space-y-6 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#1DB954]/20 rounded-full text-[#1DB954] text-xs font-black tracking-widest uppercase border border-[#1DB954]/30 shadow-[0_0_15px_rgba(29,185,84,0.2)]">
+              <Sparkles className="w-4 h-4" />
               AI Analysis Ready
             </div>
-            <h2 className="text-3xl md:text-4xl font-black tracking-tight">Deep Dive into Your Progress</h2>
-            <p className="text-gray-400 text-lg">Our AI has analyzed your performance. You're showing strong growth in some areas but might need more focus on others.</p>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">Deep Dive into Your Progress</h2>
+            <p className="text-gray-400 text-lg max-w-xl">Our AI has analyzed your performance. You're showing strong growth in some areas but might need more focus on others.</p>
             <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-4">
               <button 
                 onClick={() => navigate('/weak-areas')}
@@ -352,15 +353,15 @@ export default function Home() {
               </button>
               <button 
                 onClick={() => navigate('/analytics')}
-                className="px-8 py-4 bg-white/10 text-white rounded-full font-black hover:bg-white/20 transition-all"
+                className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full font-black transition-all backdrop-blur-md"
               >
                 View Full Analytics
               </button>
             </div>
           </div>
-          <div className="w-full md:w-1/3 aspect-square bg-[#1DB954]/10 rounded-3xl border border-[#1DB954]/20 flex items-center justify-center relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#1DB954]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <TrendingUp className="w-32 h-32 text-[#1DB954] animate-pulse" />
+          <div className="w-full md:w-1/3 aspect-square bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 flex items-center justify-center relative overflow-hidden group-hover:border-[#1DB954]/30 transition-colors duration-500 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#1DB954]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <TrendingUp className="w-32 h-32 text-[#1DB954] animate-pulse drop-shadow-[0_0_30px_rgba(29,185,84,0.5)]" />
           </div>
         </div>
       </motion.section>

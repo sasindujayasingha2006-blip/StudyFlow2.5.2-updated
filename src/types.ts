@@ -37,6 +37,8 @@ export interface AIPlanTask {
   topicId: string;
   title: string;
   duration: number; // minutes
+  startTime?: string; // HH:mm
+  endTime?: string; // HH:mm
   priority: 'High' | 'Medium' | 'Low';
   reason: string;
 }

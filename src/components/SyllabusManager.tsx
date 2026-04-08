@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Search, Plus, Edit2, Trash2, ChevronUp, ChevronDown, Save, X, Link as LinkIcon } from 'lucide-react';
+import { BookOpen, Search, Plus, Edit2, Trash2, ChevronUp, ChevronDown, Save, X, Link as LinkIcon, GripVertical, Sparkles, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Subject, Resource } from '../types';
+import { Subject, Resource, Topic } from '../types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '../lib/utils';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GoogleGenAI } from "@google/genai";
+import { useAppStore } from '../store/useAppStore';
 
 const subjectSchema = z.object({
   name: z.string().min(1, "Subject name is required"),
@@ -34,9 +53,102 @@ interface SyllabusManagerProps {
   onAddTopic: (subjectId: string, title: string, image?: string) => void;
   onEditTopic: (subjectId: string, topicId: string, title: string, mastery: number, image?: string, resources?: Resource[]) => void;
   onDeleteTopic: (subjectId: string, topicId: string) => void;
+  onReorderTopics: (subjectId: string, topics: Topic[]) => void;
   setResourceModal: (val: any) => void;
   setConfirmModal: (val: any) => void;
   setError: (val: string | null) => void;
+}
+
+function SortableTopicItem({ 
+  topic, 
+  subjectId, 
+  editingTopic, 
+  setEditingTopic, 
+  editTopicForm, 
+  onEditTopicSubmit, 
+  onEditTopic, 
+  setResourceModal, 
+  setConfirmModal, 
+  onDeleteTopic 
+}: any) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: topic.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 0,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={cn("flex flex-col p-3 bg-white/5 rounded-xl gap-3 border border-white/5", isDragging && "shadow-2xl border-[#1DB954]/50 scale-[1.02]")}>
+      <div className={cn("flex", editingTopic?.topicId === topic.id ? "flex-col" : "items-center justify-between")}>
+        {editingTopic?.topicId === topic.id ? (
+          <form onSubmit={editTopicForm.handleSubmit(onEditTopicSubmit)} className="flex flex-col gap-4 flex-1 bg-black/20 p-4 rounded-xl border border-white/10">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-[#1DB954]">Edit Topic</h4>
+              <div className="flex items-center gap-2">
+                <button type="submit" className="px-2 py-1 bg-[#1DB954] text-black text-[10px] font-bold rounded flex items-center gap-1 hover:scale-105 transition-transform"><Save className="w-3 h-3" /> Save</button>
+                <button type="button" onClick={() => setEditingTopic(null)} className="px-2 py-1 bg-white/10 text-white text-[10px] font-bold rounded flex items-center gap-1 hover:bg-white/20 transition-colors"><X className="w-3 h-3" /> Cancel</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Topic Title</label>
+                <input {...editTopicForm.register('title')} className={cn("w-full bg-white/5 border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] transition-colors", editTopicForm.formState.errors.title ? "border-red-500" : "border-white/10")} />
+                {editTopicForm.formState.errors.title && <p className="text-[10px] text-red-500">{editTopicForm.formState.errors.title.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Image URL</label>
+                <input {...editTopicForm.register('image')} placeholder="Topic Image URL" className={cn("w-full bg-white/5 border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] transition-colors", editTopicForm.formState.errors.image ? "border-red-500" : "border-white/10")} />
+                {editTopicForm.formState.errors.image && <p className="text-[10px] text-red-500">{editTopicForm.formState.errors.image.message}</p>}
+              </div>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-white/10 rounded text-gray-500">
+                <GripVertical className="w-4 h-4" />
+              </button>
+              {topic.image && <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5"><img src={topic.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /></div>}
+              <p className="text-sm font-bold">{topic.title}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditingTopic({ subjectId, topicId: topic.id })} className="p-1 text-gray-500 hover:text-white"><Edit2 className="w-4 h-4" /></button>
+              {!editingTopic && <button onClick={() => setResourceModal({ isOpen: true, subjectId, topicId: topic.id, topicTitle: topic.title, resources: topic.resources || [] })} className="p-1 text-gray-500 hover:text-[#1DB954]"><LinkIcon className="w-4 h-4" /></button>}
+              <button onClick={() => setConfirmModal({ isOpen: true, title: 'Delete Topic', message: `Delete "${topic.title}"?`, onConfirm: () => onDeleteTopic(subjectId, topic.id) })} className="p-1 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          value={editingTopic?.topicId === topic.id ? editTopicForm.watch('mastery') : topic.mastery} 
+          onChange={(e) => { 
+            const val = parseInt(e.target.value); 
+            if (editingTopic?.topicId === topic.id) {
+              editTopicForm.setValue('mastery', val);
+            } else {
+              onEditTopic(subjectId, topic.id, topic.title, val, topic.image, topic.resources); 
+            }
+          }} 
+          className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#1DB954]" 
+        />
+        <span className="text-[10px] font-bold text-[#1DB954] w-8">{editingTopic?.topicId === topic.id ? editTopicForm.watch('mastery') : topic.mastery}%</span>
+      </div>
+    </div>
+  );
 }
 
 export default function SyllabusManager({
@@ -50,6 +162,7 @@ export default function SyllabusManager({
   onAddTopic,
   onEditTopic,
   onDeleteTopic,
+  onReorderTopics,
   setResourceModal,
   setConfirmModal,
   setError
@@ -57,6 +170,59 @@ export default function SyllabusManager({
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
   const [editingTopic, setEditingTopic] = useState<{ subjectId: string, topicId: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const { addToast } = useAppStore();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (subjectId: string) => (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const subject = subjects.find(s => s.id === subjectId);
+      if (!subject) return;
+
+      const oldIndex = subject.topics.findIndex(t => t.id === active.id);
+      const newIndex = subject.topics.findIndex(t => t.id === over.id);
+
+      const newTopics = arrayMove(subject.topics, oldIndex, newIndex);
+      onReorderTopics(subjectId, newTopics);
+    }
+  };
+
+  const generateTopics = async (subject: Subject) => {
+    setIsGenerating(subject.id);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const prompt = `Generate a list of 5-8 core topics for the subject "${subject.name}". 
+      Return the response as a JSON array of strings. 
+      Example: ["Topic 1", "Topic 2"]`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt
+      });
+      
+      const text = response.text || '';
+      const topics = JSON.parse(text.substring(text.indexOf('['), text.lastIndexOf(']') + 1));
+
+      for (const topicTitle of topics) {
+        onAddTopic(subject.id, topicTitle);
+      }
+      addToast(`Generated ${topics.length} topics for ${subject.name}`, "success");
+    } catch (e) {
+      console.error("Failed to generate topics", e);
+      addToast("Failed to generate topics", "error");
+    } finally {
+      setIsGenerating(null);
+    }
+  };
 
   const addSubjectForm = useForm<SubjectFormData>({
     resolver: zodResolver(subjectSchema),
@@ -211,21 +377,40 @@ export default function SyllabusManager({
           })
           .map(s => (
           <div key={s.id} className="bg-[#181818] rounded-2xl border border-white/5 overflow-hidden">
-            <div className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden relative">
+            <div className={cn("p-4 flex hover:bg-white/5 transition-colors gap-4", editingSubject === s.id ? "flex-col" : "items-center justify-between")}>
+              <div className="flex items-center gap-4 flex-1">
+                <div className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden relative shrink-0">
                   <img src={s.image || `https://picsum.photos/seed/${s.id}/100/100`} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
                 {editingSubject === s.id ? (
-                  <form onSubmit={editSubjectForm.handleSubmit(onEditSubjectSubmit)} className="flex flex-col gap-2 flex-1 w-full">
-                    <div className="flex items-center gap-2">
-                      <input {...editSubjectForm.register('name')} className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none flex-1" />
-                      <input {...editSubjectForm.register('image')} placeholder="Image URL" className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none flex-1" />
-                      <input {...editSubjectForm.register('examDate')} type="date" className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none text-gray-400" />
-                      <button type="submit" className="p-1 text-[#1DB954]"><Save className="w-4 h-4" /></button>
-                      <button type="button" onClick={() => setEditingSubject(null)} className="p-1 text-red-500"><X className="w-4 h-4" /></button>
+                  <form onSubmit={editSubjectForm.handleSubmit(onEditSubjectSubmit)} className="flex flex-col gap-4 flex-1 w-full bg-black/20 p-5 rounded-xl border border-white/10">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-bold text-[#1DB954]">Edit Subject</h4>
+                      <div className="flex items-center gap-2">
+                        <button type="submit" className="px-3 py-1.5 bg-[#1DB954] text-black text-xs font-bold rounded-lg flex items-center gap-1 hover:scale-105 transition-transform"><Save className="w-3 h-3" /> Save</button>
+                        <button type="button" onClick={() => setEditingSubject(null)} className="px-3 py-1.5 bg-white/10 text-white text-xs font-bold rounded-lg flex items-center gap-1 hover:bg-white/20 transition-colors"><X className="w-3 h-3" /> Cancel</button>
+                      </div>
                     </div>
-                    <textarea {...editSubjectForm.register('notes')} placeholder="Subject Notes (Optional)" className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none w-full resize-none h-16" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Subject Name</label>
+                        <input {...editSubjectForm.register('name')} className={cn("w-full bg-white/5 border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] transition-colors", editSubjectForm.formState.errors.name ? "border-red-500" : "border-white/10")} />
+                        {editSubjectForm.formState.errors.name && <p className="text-[10px] text-red-500">{editSubjectForm.formState.errors.name.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Image URL</label>
+                        <input {...editSubjectForm.register('image')} placeholder="Image URL" className={cn("w-full bg-white/5 border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] transition-colors", editSubjectForm.formState.errors.image ? "border-red-500" : "border-white/10")} />
+                        {editSubjectForm.formState.errors.image && <p className="text-[10px] text-red-500">{editSubjectForm.formState.errors.image.message}</p>}
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Exam Date</label>
+                        <input {...editSubjectForm.register('examDate')} type="date" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] text-gray-300 transition-colors" />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Notes</label>
+                        <textarea {...editSubjectForm.register('notes')} placeholder="Subject Notes (Optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1DB954] resize-none h-24 transition-colors" />
+                      </div>
+                    </div>
                   </form>
                 ) : ( 
                   <div className="flex flex-col">
@@ -234,66 +419,54 @@ export default function SyllabusManager({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingSubject(s.id)} className="p-2 text-gray-500 hover:text-white"><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => setExpandedSubject(expandedSubject === s.id ? null : s.id)} className="p-2 text-gray-500 hover:text-white">{expandedSubject === s.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
-                <button onClick={() => setConfirmModal({ isOpen: true, title: 'Delete Subject', message: `Delete "${s.name}"?`, onConfirm: () => onDeleteSubject(s.id) })} className="p-2 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
+              {editingSubject !== s.id && (
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => generateTopics(s)}
+                    disabled={isGenerating === s.id}
+                    className="p-2 text-[#1DB954] hover:bg-[#1DB954]/10 rounded-lg flex items-center gap-2 text-xs font-bold"
+                  >
+                    {isGenerating === s.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span className="hidden sm:inline">AI Topics</span>
+                  </button>
+                  <button onClick={() => setEditingSubject(s.id)} className="p-2 text-gray-500 hover:text-white"><Edit2 className="w-4 h-4" /></button>
+                  <button onClick={() => setExpandedSubject(expandedSubject === s.id ? null : s.id)} className="p-2 text-gray-500 hover:text-white">{expandedSubject === s.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+                  <button onClick={() => setConfirmModal({ isOpen: true, title: 'Delete Subject', message: `Delete "${s.name}"?`, onConfirm: () => onDeleteSubject(s.id) })} className="p-2 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
             </div>
             <AnimatePresence>
               {expandedSubject === s.id && (
                 <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-white/5 overflow-hidden">
                   <div className="p-4 space-y-4">
-                    <div className="grid grid-cols-1 gap-2">
-                      {s.topics.map(topic => (
-                        <div key={topic.id} className="flex flex-col p-3 bg-white/5 rounded-xl gap-3">
-                          <div className="flex items-center justify-between">
-                            {editingTopic?.topicId === topic.id ? (
-                              <form onSubmit={editTopicForm.handleSubmit(onEditTopicSubmit)} className="flex items-center justify-between flex-1">
-                                <div className="flex flex-col gap-2 flex-1 mr-4">
-                                  <input {...editTopicForm.register('title')} className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none" />
-                                  <input {...editTopicForm.register('image')} placeholder="Topic Image URL" className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm outline-none" />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button type="submit" className="p-1 text-[#1DB954]"><Save className="w-4 h-4" /></button>
-                                  <button type="button" onClick={() => setEditingTopic(null)} className="p-1 text-red-500"><X className="w-4 h-4" /></button>
-                                </div>
-                              </form>
-                            ) : (
-                              <>
-                                <div className="flex items-center gap-3">
-                                  {topic.image && <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5"><img src={topic.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /></div>}
-                                  <p className="text-sm font-bold">{topic.title}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button onClick={() => setEditingTopic({ subjectId: s.id, topicId: topic.id })} className="p-1 text-gray-500 hover:text-white"><Edit2 className="w-4 h-4" /></button>
-                                  {!editingTopic && <button onClick={() => setResourceModal({ isOpen: true, subjectId: s.id, topicId: topic.id, topicTitle: topic.title, resources: topic.resources || [] })} className="p-1 text-gray-500 hover:text-[#1DB954]"><LinkIcon className="w-4 h-4" /></button>}
-                                  <button onClick={() => setConfirmModal({ isOpen: true, title: 'Delete Topic', message: `Delete "${topic.title}"?`, onConfirm: () => onDeleteTopic(s.id, topic.id) })} className="p-1 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <input 
-                              type="range" 
-                              min="0" 
-                              max="100" 
-                              value={editingTopic?.topicId === topic.id ? editTopicForm.watch('mastery') : topic.mastery} 
-                              onChange={(e) => { 
-                                const val = parseInt(e.target.value); 
-                                if (editingTopic?.topicId === topic.id) {
-                                  editTopicForm.setValue('mastery', val);
-                                } else {
-                                  onEditTopic(s.id, topic.id, topic.title, val, topic.image, topic.resources); 
-                                }
-                              }} 
-                              className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#1DB954]" 
+                    <DndContext 
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd(s.id)}
+                    >
+                      <SortableContext 
+                        items={s.topics.map(t => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="grid grid-cols-1 gap-2">
+                          {s.topics.map(topic => (
+                            <SortableTopicItem
+                              key={topic.id}
+                              topic={topic}
+                              subjectId={s.id}
+                              editingTopic={editingTopic}
+                              setEditingTopic={setEditingTopic}
+                              editTopicForm={editTopicForm}
+                              onEditTopicSubmit={onEditTopicSubmit}
+                              onEditTopic={onEditTopic}
+                              setResourceModal={setResourceModal}
+                              setConfirmModal={setConfirmModal}
+                              onDeleteTopic={onDeleteTopic}
                             />
-                            <span className="text-[10px] font-bold text-[#1DB954] w-8">{editingTopic?.topicId === topic.id ? editTopicForm.watch('mastery') : topic.mastery}%</span>
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                     
                     <AddTopicForm subjectId={s.id} onAddTopic={onAddTopic} setError={setError} />
                   </div>
@@ -365,4 +538,3 @@ function AddTopicForm({ subjectId, onAddTopic, setError }: AddTopicFormProps) {
     </form>
   );
 }
-

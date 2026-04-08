@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Calendar, Clock, AlertCircle, CheckCircle2, RefreshCw, Brain, Target, ArrowRight } from 'lucide-react';
+import { Sparkles, Calendar, Clock, AlertCircle, CheckCircle2, RefreshCw, Brain, Target, ArrowRight, Edit2, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -7,8 +7,23 @@ import { cn } from '../lib/utils';
 import { AIStudyPlan, AIPlanTask } from '../types';
 
 export default function AIStudyPlanner() {
-  const { subjects, aiPlan, setAIPlan, addToast, startFocusSession } = useAppStore();
+  const { subjects, aiPlan, setAIPlan, updateAIPlanTask, addToast, startFocusSession } = useAppStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [editDuration, setEditDuration] = useState<number>(0);
+  const [editStartTime, setEditStartTime] = useState<string>('');
+
+  const handleEditClick = (task: AIPlanTask) => {
+    setEditingTask(task.id);
+    setEditDuration(task.duration);
+    setEditStartTime(task.startTime || '');
+  };
+
+  const handleSaveEdit = (taskId: string) => {
+    updateAIPlanTask(taskId, { duration: editDuration, startTime: editStartTime });
+    setEditingTask(null);
+    addToast('Schedule updated successfully', 'success');
+  };
 
   const generatePlan = async () => {
     setIsGenerating(true);
@@ -70,17 +85,30 @@ export default function AIStudyPlanner() {
 
       const result = JSON.parse(response.text);
       
+      let currentTime = new Date();
+      // Start the plan from the next hour or half-hour
+      currentTime.setMinutes(Math.ceil(currentTime.getMinutes() / 30) * 30);
+      currentTime.setSeconds(0);
+      currentTime.setMilliseconds(0);
+
       const newPlan: AIStudyPlan = {
         id: Math.random().toString(36).substr(2, 9),
         date: new Date().toISOString(),
         summary: result.summary,
-        tasks: result.tasks.map((t: any) => ({
-          ...t,
-          id: Math.random().toString(36).substr(2, 9),
-          // Map back to real IDs if possible, or just use titles
-          subjectId: subjects.find(s => s.name.toLowerCase().includes(t.subjectId?.toLowerCase() || ''))?.id || subjects[0].id,
-          topicId: t.topicId || ''
-        }))
+        tasks: result.tasks.map((t: any) => {
+          const startTime = `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')}`;
+          currentTime.setMinutes(currentTime.getMinutes() + t.duration);
+          const endTime = `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')}`;
+          
+          return {
+            ...t,
+            id: Math.random().toString(36).substr(2, 9),
+            subjectId: subjects.find(s => s.name.toLowerCase().includes(t.subjectId?.toLowerCase() || ''))?.id || subjects[0].id,
+            topicId: t.topicId || '',
+            startTime,
+            endTime
+          };
+        })
       };
 
       setAIPlan(newPlan);
@@ -162,7 +190,7 @@ export default function AIStudyPlanner() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-[#181818] p-5 rounded-xl border border-white/5 hover:border-[#1DB954]/30 transition-all group"
+                  className="bg-[#181818] p-5 rounded-xl border border-white/5 hover:border-[#1DB954]/30 transition-all group relative"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -174,12 +202,41 @@ export default function AIStudyPlanner() {
                       )}>
                         {task.priority} Priority
                       </span>
-                      <div className="flex items-center gap-1 text-gray-500 text-[10px] font-bold uppercase">
-                        <Clock className="w-3 h-3" />
-                        {task.duration}m
-                      </div>
+                      {editingTask === task.id ? (
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="time" 
+                            value={editStartTime}
+                            onChange={(e) => setEditStartTime(e.target.value)}
+                            className="bg-white/10 text-xs px-2 py-1 rounded outline-none w-20"
+                          />
+                          <input 
+                            type="number" 
+                            value={editDuration}
+                            onChange={(e) => setEditDuration(Number(e.target.value))}
+                            className="bg-white/10 text-xs px-2 py-1 rounded outline-none w-16"
+                            min="5"
+                            step="5"
+                          />
+                          <span className="text-xs text-gray-400">m</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-500 text-[10px] font-bold uppercase">
+                          <Clock className="w-3 h-3" />
+                          {task.startTime && task.endTime ? `${task.startTime} - ${task.endTime}` : `${task.duration}m`}
+                        </div>
+                      )}
                     </div>
-                    <Target className="w-4 h-4 text-gray-700 group-hover:text-[#1DB954] transition-colors" />
+                    {editingTask === task.id ? (
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => handleSaveEdit(task.id)} className="p-1 text-[#1DB954] hover:bg-white/10 rounded"><Check className="w-4 h-4" /></button>
+                        <button onClick={() => setEditingTask(null)} className="p-1 text-red-500 hover:bg-white/10 rounded"><X className="w-4 h-4" /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleEditClick(task)} className="p-1 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   
                   <h4 className="font-bold text-lg mb-2 group-hover:text-[#1DB954] transition-colors">{task.title}</h4>

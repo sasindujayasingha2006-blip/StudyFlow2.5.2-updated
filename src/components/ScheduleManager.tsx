@@ -110,8 +110,67 @@ export default function ScheduleManager({
   const onEditSubmit = (data: ActivityFormData) => {
     if (!editingActivity) return;
     const { day, id } = editingActivity;
-    const updated = schedule[day].map(a => a.id === id ? { ...a, ...data } : a);
-    onUpdateSchedule(day, updated);
+    
+    const activityIndex = schedule[day].findIndex(a => a.id === id);
+    if (activityIndex === -1) return;
+
+    const oldActivity = schedule[day][activityIndex];
+    const newActivities = [...schedule[day]];
+
+    // Helper to parse time string into minutes
+    const parseTime = (timeStr: string) => {
+      const parts = timeStr.split(/\s*[–-]\s*/);
+      if (parts.length !== 2) return null;
+      const parse12Hour = (str: string) => {
+        const match = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (!match) return 0;
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3].toUpperCase();
+        if (period === 'PM' && hours < 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+      return { start: parse12Hour(parts[0]), end: parse12Hour(parts[1]) };
+    };
+
+    // Helper to format minutes into time string
+    const formatTime = (minutes: number) => {
+      // Handle overflow past midnight
+      minutes = (minutes + 24 * 60) % (24 * 60);
+      let hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const period = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      if (hours === 0) hours = 12;
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${period}`;
+    };
+
+    const oldTimeParsed = parseTime(oldActivity.time);
+    const newTimeParsed = parseTime(data.time);
+
+    newActivities[activityIndex] = { ...oldActivity, ...data };
+
+    // Auto-adjust subsequent activities if end time changed
+    if (oldTimeParsed && newTimeParsed) {
+      const shiftAmount = newTimeParsed.end - oldTimeParsed.end;
+      
+      if (shiftAmount !== 0) {
+        for (let i = activityIndex + 1; i < newActivities.length; i++) {
+          const currentParsed = parseTime(newActivities[i].time);
+          if (currentParsed) {
+            const newStart = currentParsed.start + shiftAmount;
+            const newEnd = currentParsed.end + shiftAmount;
+            newActivities[i] = {
+              ...newActivities[i],
+              time: `${formatTime(newStart)} - ${formatTime(newEnd)}`
+            };
+          }
+        }
+      }
+    }
+
+    onUpdateSchedule(day, newActivities);
     setEditingActivity(null);
     setError(null);
   };

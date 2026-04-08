@@ -20,7 +20,10 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set) => ({
     streak: 0,
     badges: INITIAL_BADGES,
     totalSessions: 0,
-    totalStudyTime: 0
+    totalStudyTime: 0,
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 100
   },
   setUserProfile: (profile) => set({ userProfile: profile }),
   isAuthReady: false,
