@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { motion } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import SyllabusTracker from '../components/SyllabusTracker';
+import WeeklyTaskChecklist from '../components/WeeklyTaskChecklist';
 import { db } from '../firebase';
 import { doc, writeBatch } from 'firebase/firestore';
 
@@ -54,7 +55,9 @@ export default function Syllabus() {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
+      className="space-y-8"
     >
+      <WeeklyTaskChecklist />
       <SyllabusTracker 
         subjects={subjects} 
         onUpdateMastery={handleUpdateMastery} 

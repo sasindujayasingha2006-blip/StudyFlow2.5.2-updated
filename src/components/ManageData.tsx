@@ -30,6 +30,7 @@ interface ManageDataProps {
   onUpdateResources: (subjectId: string, topicId: string, resources: Resource[]) => void;
   onResetSyllabus: () => void;
   onResetProfile: () => void;
+  onResetSchedule: () => void;
   exams: ExamRecord[];
   onAddExam: (exam: Omit<ExamRecord, 'id'>) => void;
   onEditExam: (id: string, updatedExam: Partial<ExamRecord>) => void;
@@ -56,6 +57,7 @@ export default function ManageData({
   onUpdateResources,
   onResetSyllabus,
   onResetProfile,
+  onResetSchedule,
   exams,
   onAddExam,
   onEditExam,
@@ -191,6 +193,7 @@ export default function ManageData({
             <ProfileSettings 
               onResetProfile={onResetProfile}
               onResetSyllabus={onResetSyllabus}
+              onResetSchedule={onResetSchedule}
               setConfirmModal={setConfirmModal}
             />
           </motion.div>

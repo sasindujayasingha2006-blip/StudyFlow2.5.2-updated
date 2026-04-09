@@ -4,12 +4,14 @@ import { motion } from 'motion/react';
 interface ProfileSettingsProps {
   onResetProfile: () => void;
   onResetSyllabus: () => void;
+  onResetSchedule: () => void;
   setConfirmModal: (val: any) => void;
 }
 
 export default function ProfileSettings({
   onResetProfile,
   onResetSyllabus,
+  onResetSchedule,
   setConfirmModal
 }: ProfileSettingsProps) {
   return (
@@ -24,7 +26,7 @@ export default function ProfileSettings({
             <p className="text-gray-400 text-sm">A/L Student • Combined Maths Stream</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button 
             onClick={() => setConfirmModal({ 
               isOpen: true, 
@@ -46,6 +48,17 @@ export default function ProfileSettings({
             className="w-full text-left px-4 py-3 bg-white/5 text-white rounded-xl text-sm font-bold"
           >
             Reset Syllabus to Default
+          </button>
+          <button 
+            onClick={() => setConfirmModal({ 
+              isOpen: true, 
+              title: 'Reset Schedule', 
+              message: 'Reset weekly schedule?', 
+              onConfirm: onResetSchedule 
+            })} 
+            className="w-full text-left px-4 py-3 bg-white/5 text-white rounded-xl text-sm font-bold"
+          >
+            Reset Schedule to Default
           </button>
         </div>
       </div>

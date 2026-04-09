@@ -14,9 +14,17 @@ import Practice from './pages/Practice';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useAppStore } from './store/useAppStore';
+import { useEffect } from 'react';
 
 export default function App() {
-  const { user, isAuthReady } = useAppStore();
+  const { user, isAuthReady, schedule, resetToDefault } = useAppStore();
+
+  // Migration: If user is on the old schedule, force reset to the new intensive plan
+  useEffect(() => {
+    if (isAuthReady && schedule.Monday?.[0]?.time === '04:30 AM – 06:30 AM') {
+      resetToDefault();
+    }
+  }, [isAuthReady, schedule, resetToDefault]);
 
   return (
     <ErrorBoundary>

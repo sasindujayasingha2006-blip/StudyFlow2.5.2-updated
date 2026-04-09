@@ -5,7 +5,7 @@ import ManageData from '../components/ManageData';
 import { db, auth } from '../firebase';
 import { doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { WeeklySchedule, Activity, ExamRecord, Subject, Topic, Resource, StudyLog } from '../types';
-import { INITIAL_SUBJECTS, INITIAL_BADGES } from '../constants';
+import { INITIAL_SUBJECTS, INITIAL_BADGES, WEEKLY_BASE_SCHEDULE } from '../constants';
 
 export default function Manage() {
   const { 
@@ -22,7 +22,7 @@ export default function Manage() {
   const handleUpdateSchedule = async (day: keyof WeeklySchedule, activities: Activity[]) => {
     if (!user) return;
     try {
-      const scheduleRef = doc(db, 'users', user.uid, 'schedules', 'weekly');
+      const scheduleRef = doc(db, 'users', user.uid, 'config', 'schedule');
       await setDoc(scheduleRef, { ...schedule, [day]: activities });
       addToast(`Updated schedule for ${day}`, 'success');
     } catch (e) {
@@ -243,12 +243,13 @@ export default function Manage() {
     if (!user) return;
     try {
       const batch = writeBatch(db);
+      // Delete existing
       subjects.forEach(s => {
         batch.delete(doc(db, 'users', user.uid, 'subjects', s.id));
       });
+      // Add initial
       INITIAL_SUBJECTS.forEach(s => {
-        const id = Math.random().toString(36).substr(2, 9);
-        batch.set(doc(db, 'users', user.uid, 'subjects', id), { ...s, id });
+        batch.set(doc(db, 'users', user.uid, 'subjects', s.id), s);
       });
       await batch.commit();
       addToast("Syllabus reset to default", "success");
@@ -270,6 +271,17 @@ export default function Manage() {
       addToast("Profile reset to default", "success");
     } catch (e) {
       console.error("Failed to reset profile", e);
+    }
+  };
+
+  const handleResetScheduleAction = async () => {
+    if (!user) return;
+    try {
+      const scheduleRef = doc(db, 'users', user.uid, 'config', 'schedule');
+      await setDoc(scheduleRef, WEEKLY_BASE_SCHEDULE);
+      addToast("Schedule reset to default", "success");
+    } catch (e) {
+      console.error("Failed to reset schedule", e);
     }
   };
 
@@ -297,6 +309,7 @@ export default function Manage() {
         onUpdateResources={handleUpdateResources}
         onResetSyllabus={handleResetSyllabus}
         onResetProfile={handleResetProfile}
+        onResetSchedule={handleResetScheduleAction}
         exams={exams}
         onAddExam={handleAddExam}
         onEditExam={handleEditExam}

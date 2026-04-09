@@ -86,12 +86,45 @@ const SortableActivity = ({ activity, day, onEdit }: SortableActivityProps) => {
   );
 };
 
+import { auth, googleProvider, signInWithPopup, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 export default function WeeklyScheduleView({ schedule, onManageSchedule }: WeeklyScheduleViewProps) {
-  const { reorderSchedule, updateActivity, setSchedule } = useAppStore();
+  const { reorderSchedule, updateActivity, resetToDefault, user, addToast } = useAppStore();
   const [editingActivity, setEditingActivity] = useState<{ day: keyof WeeklySchedule, activity: Activity } | null>(null);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isInitialMount = React.useRef(true);
 
   const days: (keyof WeeklySchedule)[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const saveScheduleToFirestore = React.useCallback(async (newSchedule: WeeklySchedule) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'config', 'schedule'), newSchedule);
+      addToast('Schedule synced to cloud', 'success');
+    } catch (error) {
+      console.error('Failed to save schedule:', error);
+      addToast('Failed to save schedule', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, addToast]);
+
+  // Auto-save schedule when it changes
+  React.useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      saveScheduleToFirestore(schedule);
+    }, 3000); // 3 second debounce
+
+    return () => clearTimeout(timer);
+  }, [schedule, saveScheduleToFirestore]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -100,19 +133,25 @@ export default function WeeklyScheduleView({ schedule, onManageSchedule }: Weekl
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent, day: keyof WeeklySchedule) => {
+  const handleDragEnd = async (event: DragEndEvent, day: keyof WeeklySchedule) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
       const oldIndex = schedule[day].findIndex(a => a.id === active.id);
       const newIndex = schedule[day].findIndex(a => a.id === over.id);
       reorderSchedule(day, oldIndex, newIndex);
+      
+      // We need the UPDATED schedule. Since Zustand set is sync, we can't easily get it here 
+      // without using the store's getState() or waiting for next render.
+      // But we can calculate it or just use a useEffect.
     }
   };
 
-  const handleResetSchedule = () => {
+  const handleResetSchedule = async () => {
     if (confirm('Are you sure you want to reset your schedule to the default intensive plan? This will overwrite your current changes.')) {
-      setSchedule(WEEKLY_BASE_SCHEDULE);
+      resetToDefault();
+      // The useEffect will handle the save to Firestore for the schedule
+      addToast('System reset to defaults', 'success');
     }
   };
 
@@ -148,6 +187,20 @@ export default function WeeklyScheduleView({ schedule, onManageSchedule }: Weekl
           <p className="text-gray-400">Your optimized study routine for the week.</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
+            <div className={cn("w-2 h-2 rounded-full", isSaving ? "bg-yellow-500 animate-pulse" : "bg-[#1DB954]")} />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              {isSaving ? 'Saving...' : 'Cloud Synced'}
+            </span>
+          </div>
+          <button 
+            onClick={() => saveScheduleToFirestore(schedule)}
+            disabled={isSaving}
+            className="p-3 bg-white/5 text-gray-400 hover:text-white rounded-full border border-white/10 transition-all disabled:opacity-50"
+            title="Save to Cloud"
+          >
+            <Save className="w-4 h-4" />
+          </button>
           <button 
             onClick={handleResetSchedule}
             className="px-6 py-3 bg-white/5 text-white rounded-full font-bold hover:bg-white/10 transition-all border border-white/10 flex items-center gap-2"

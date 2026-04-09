@@ -68,6 +68,7 @@ export interface StudySlice {
   recentlyStudied: string[];
   setRecentlyStudied: (ids: string[]) => void;
   addRecentlyStudied: (id: string) => void;
+  resetToDefault: () => void;
 }
 
 export const createStudySlice: StateCreator<StudySlice> = (set) => ({
@@ -161,5 +162,12 @@ export const createStudySlice: StateCreator<StudySlice> = (set) => ({
   addRecentlyStudied: (id) => set((state) => {
     const filtered = state.recentlyStudied.filter(tid => tid !== id);
     return { recentlyStudied: [id, ...filtered].slice(0, 10) };
+  }),
+  resetToDefault: () => set({ 
+    subjects: INITIAL_SUBJECTS, 
+    schedule: WEEKLY_BASE_SCHEDULE,
+    aiPlan: null,
+    studyLogs: [],
+    exams: []
   }),
 });
