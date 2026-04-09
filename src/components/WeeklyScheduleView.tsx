@@ -1,16 +1,137 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WeeklySchedule, Activity } from '../types';
-import { motion } from 'motion/react';
-import { Clock, BookOpen, Zap, CheckCircle2, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Clock, BookOpen, Zap, CheckCircle2, ChevronRight, GripVertical, Edit2, Calendar, Trash2, Save, X as CloseIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAppStore } from '../store/useAppStore';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface WeeklyScheduleViewProps {
   schedule: WeeklySchedule;
   onManageSchedule: () => void;
 }
 
+interface SortableActivityProps {
+  activity: Activity;
+  day: keyof WeeklySchedule;
+  onEdit: (activity: Activity) => void;
+}
+
+const SortableActivity = ({ activity, day, onEdit }: SortableActivityProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: activity.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 0,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "p-3 rounded-xl border border-white/5 transition-all group hover:bg-white/5 flex items-center gap-3",
+        activity.type === 'study' ? "bg-white/5 border-[#1DB954]/20" : "opacity-60",
+        isDragging && "bg-[#282828] border-[#1DB954] shadow-2xl scale-105"
+      )}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400">
+        <GripVertical className="w-4 h-4" />
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-bold text-gray-500 tabular-nums">{activity.time.split(' – ')[0]}</span>
+          <div className="flex items-center gap-2">
+            {activity.type === 'study' && <BookOpen className="w-3 h-3 text-[#1DB954]" />}
+            {activity.type === 'tuition' && <Zap className="w-3 h-3 text-blue-500" />}
+            {activity.type === 'break' && <Clock className="w-3 h-3 text-yellow-500" />}
+            <button 
+              onClick={() => onEdit(activity)}
+              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-all"
+            >
+              <Edit2 className="w-3 h-3 text-gray-400" />
+            </button>
+          </div>
+        </div>
+        <h4 className="text-sm font-bold truncate group-hover:text-white transition-colors">{activity.description}</h4>
+        <p className="text-[10px] text-gray-500 capitalize">{activity.type}</p>
+      </div>
+    </div>
+  );
+};
+
 export default function WeeklyScheduleView({ schedule, onManageSchedule }: WeeklyScheduleViewProps) {
+  const { reorderSchedule, updateActivity } = useAppStore();
+  const [editingActivity, setEditingActivity] = useState<{ day: keyof WeeklySchedule, activity: Activity } | null>(null);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+
   const days: (keyof WeeklySchedule)[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent, day: keyof WeeklySchedule) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = schedule[day].findIndex(a => a.id === active.id);
+      const newIndex = schedule[day].findIndex(a => a.id === over.id);
+      reorderSchedule(day, oldIndex, newIndex);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    setIsConnectingGoogle(true);
+    try {
+      const response = await fetch('/api/auth/google/url');
+      const { url } = await response.json();
+      
+      const authWindow = window.open(url, 'google_auth', 'width=600,height=700');
+      
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+          localStorage.setItem('google_calendar_tokens', JSON.stringify(event.data.tokens));
+          alert('Successfully connected to Google Calendar!');
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+    } catch (error) {
+      console.error('Failed to connect Google Calendar:', error);
+    } finally {
+      setIsConnectingGoogle(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-12 pb-32">
@@ -19,13 +140,23 @@ export default function WeeklyScheduleView({ schedule, onManageSchedule }: Weekl
           <h2 className="text-4xl font-black tracking-tight">Weekly Schedule</h2>
           <p className="text-gray-400">Your optimized study routine for the week.</p>
         </div>
-        <button 
-          onClick={onManageSchedule}
-          className="px-6 py-3 bg-white text-black rounded-full font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2"
-        >
-          <Zap className="w-4 h-4 fill-current" />
-          Manage Schedule
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleConnectGoogle}
+            disabled={isConnectingGoogle}
+            className="px-6 py-3 bg-[#4285F4] text-white rounded-full font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2 disabled:opacity-50"
+          >
+            <Calendar className="w-4 h-4" />
+            {isConnectingGoogle ? 'Connecting...' : 'Connect Google Calendar'}
+          </button>
+          <button 
+            onClick={onManageSchedule}
+            className="px-6 py-3 bg-white text-black rounded-full font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2"
+          >
+            <Zap className="w-4 h-4 fill-current" />
+            Manage Schedule
+          </button>
+        </div>
       </div>
 
       {/* Tuition Summary */}
@@ -68,29 +199,150 @@ export default function WeeklyScheduleView({ schedule, onManageSchedule }: Weekl
               </p>
             </div>
 
-            <div className="space-y-3">
-              {schedule[day].map((activity, i) => (
-                <div 
-                  key={activity.id}
-                  className={cn(
-                    "p-3 rounded-xl border border-white/5 transition-all group hover:bg-white/5",
-                    activity.type === 'study' ? "bg-white/5 border-[#1DB954]/20" : "opacity-60"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-gray-500 tabular-nums">{activity.time.split(' – ')[0]}</span>
-                    {activity.type === 'study' && <BookOpen className="w-3 h-3 text-[#1DB954]" />}
-                    {activity.type === 'tuition' && <Zap className="w-3 h-3 text-blue-500" />}
-                    {activity.type === 'break' && <Clock className="w-3 h-3 text-yellow-500" />}
-                  </div>
-                  <h4 className="text-sm font-bold truncate group-hover:text-white transition-colors">{activity.description}</h4>
-                  <p className="text-[10px] text-gray-500 capitalize">{activity.type}</p>
+            <DndContext 
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => handleDragEnd(e, day)}
+            >
+              <SortableContext 
+                items={schedule[day].map(a => a.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {schedule[day].map((activity) => (
+                    <SortableActivity 
+                      key={activity.id} 
+                      activity={activity} 
+                      day={day}
+                      onEdit={(a) => setEditingActivity({ day, activity: a })}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           </motion.div>
         ))}
       </div>
+
+      {/* Edit Activity Modal */}
+      <AnimatePresence>
+        {editingActivity && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingActivity(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#181818] rounded-3xl p-8 border border-white/10 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-black tracking-tight">Edit Activity</h3>
+                <button onClick={() => setEditingActivity(null)} className="p-2 hover:bg-white/5 rounded-full">
+                  <CloseIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Description</label>
+                  <input 
+                    type="text"
+                    value={editingActivity.activity.description}
+                    onChange={(e) => setEditingActivity({
+                      ...editingActivity,
+                      activity: { ...editingActivity.activity, description: e.target.value }
+                    })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#1DB954] transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Start Time</label>
+                    <input 
+                      type="text"
+                      placeholder="08:00 AM"
+                      value={editingActivity.activity.time.split(' – ')[0]}
+                      onChange={(e) => {
+                        const [_, end] = editingActivity.activity.time.split(' – ');
+                        setEditingActivity({
+                          ...editingActivity,
+                          activity: { ...editingActivity.activity, time: `${e.target.value} – ${end}` }
+                        });
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#1DB954] transition-colors tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">End Time</label>
+                    <input 
+                      type="text"
+                      placeholder="09:00 AM"
+                      value={editingActivity.activity.time.split(' – ')[1]}
+                      onChange={(e) => {
+                        const [start, _] = editingActivity.activity.time.split(' – ');
+                        setEditingActivity({
+                          ...editingActivity,
+                          activity: { ...editingActivity.activity, time: `${start} – ${e.target.value}` }
+                        });
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#1DB954] transition-colors tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['study', 'tuition', 'break', 'rest'].map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setEditingActivity({
+                          ...editingActivity,
+                          activity: { ...editingActivity.activity, type: type as Activity['type'] }
+                        })}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold capitalize border transition-all",
+                          editingActivity.activity.type === type 
+                            ? "bg-[#1DB954] text-black border-[#1DB954]" 
+                            : "bg-white/5 text-gray-400 border-white/10 hover:border-white/20"
+                        )}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => setEditingActivity(null)}
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white rounded-full font-black transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      updateActivity(editingActivity.day, editingActivity.activity.id, editingActivity.activity);
+                      setEditingActivity(null);
+                    }}
+                    className="flex-1 py-4 bg-[#1DB954] text-black rounded-full font-black hover:scale-105 transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

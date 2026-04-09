@@ -1,6 +1,53 @@
 import { StateCreator } from 'zustand';
-import { Subject, StudyLog, WeeklySchedule, AIRecommendation, ExamRecord, AIStudyPlan, AIPlanTask } from '../../types';
+import { Subject, StudyLog, WeeklySchedule, AIRecommendation, ExamRecord, AIStudyPlan, AIPlanTask, Activity } from '../../types';
 import { INITIAL_SUBJECTS, WEEKLY_BASE_SCHEDULE } from '../../constants';
+
+const parseTimeStr = (timeStr: string) => {
+  const [time, modifier] = timeStr.trim().split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+};
+
+const formatTimeStr = (totalMinutes: number) => {
+  let hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const modifier = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${modifier}`;
+};
+
+const recalculateActivityTimes = (activities: Activity[]) => {
+  if (activities.length === 0) return [];
+
+  const updated = [...activities];
+  
+  for (let i = 0; i < updated.length; i++) {
+    const current = updated[i];
+    const [startStr, endStr] = current.time.split(' – ');
+    const startMinutes = parseTimeStr(startStr);
+    const endMinutes = parseTimeStr(endStr);
+    const duration = endMinutes - startMinutes;
+
+    if (i > 0) {
+      const prev = updated[i - 1];
+      const prevEndStr = prev.time.split(' – ')[1];
+      const prevEndMinutes = parseTimeStr(prevEndStr);
+      
+      const newStart = prevEndMinutes;
+      const newEnd = newStart + duration;
+      
+      updated[i] = {
+        ...current,
+        time: `${formatTimeStr(newStart)} – ${formatTimeStr(newEnd)}`
+      };
+    }
+  }
+  
+  return updated;
+};
 
 export interface StudySlice {
   subjects: Subject[];
@@ -16,6 +63,8 @@ export interface StudySlice {
   aiPlan: AIStudyPlan | null;
   setAIPlan: (plan: AIStudyPlan | null) => void;
   updateAIPlanTask: (taskId: string, updates: Partial<AIPlanTask>) => void;
+  reorderSchedule: (day: keyof WeeklySchedule, startIndex: number, endIndex: number) => void;
+  updateActivity: (day: keyof WeeklySchedule, activityId: string, updates: Partial<Activity>) => void;
   recentlyStudied: string[];
   setRecentlyStudied: (ids: string[]) => void;
   addRecentlyStudied: (id: string) => void;
@@ -71,6 +120,39 @@ export const createStudySlice: StateCreator<StudySlice> = (set) => ({
       aiPlan: {
         ...state.aiPlan,
         tasks: newTasks
+      }
+    };
+  }),
+  reorderSchedule: (day, startIndex, endIndex) => set((state) => {
+    const newDayActivities = [...state.schedule[day]];
+    const [removed] = newDayActivities.splice(startIndex, 1);
+    newDayActivities.splice(endIndex, 0, removed);
+
+    // Recalculate times for the entire day based on the new order
+    const updatedActivities = recalculateActivityTimes(newDayActivities);
+
+    return {
+      schedule: {
+        ...state.schedule,
+        [day]: updatedActivities
+      }
+    };
+  }),
+  updateActivity: (day, activityId, updates) => set((state) => {
+    const newDayActivities = [...state.schedule[day]];
+    const index = newDayActivities.findIndex(a => a.id === activityId);
+    if (index === -1) return state;
+
+    newDayActivities[index] = { ...newDayActivities[index], ...updates };
+
+    // If time or duration (implied by start/end) changed, recalculate
+    // For simplicity, if any update happens, we can recalculate or just if time changed
+    const updatedActivities = recalculateActivityTimes(newDayActivities);
+
+    return {
+      schedule: {
+        ...state.schedule,
+        [day]: updatedActivities
       }
     };
   }),
